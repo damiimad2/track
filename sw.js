@@ -10,7 +10,7 @@
 // It never caches customer data on purpose beyond that last page, and it never sends anything
 // anywhere: all it does is display what the browser hands it.
 
-const CACHE_NAME = 'repair-tracking-v1';
+const CACHE_NAME = 'repair-tracking-v2';
 const OFFLINE_PAGE = 'index.html';
 
 // Bump this whenever index.html changes, so phones pick up the new version instead of a
