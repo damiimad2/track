@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تتبع حالة إصلاح الجهاز | Track Repair Status</title>
+    <!-- Installable as an app, and the "notify me even when this tab is closed" plumbing.
+         iOS needs these two meta tags; Android/Chrome read the manifest. -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#0b0f19">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Suivi réparation">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="icon" type="image/png" href="icon-192.png">
+    <!-- Google Fonts: Inter for Latin, Outfit for headings, Cairo for Arabic -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: rgba(17, 24, 39, 0.7);
+            --card-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.15);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.2);
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.15);
+            --font-arabic: 'Cairo', sans-serif;
+            --font-latin: 'Inter', sans-serif;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(239, 68, 68, 0.05) 0px, transparent 50%);
+            color: var(--text-primary);
+            font-family: var(--font-arabic);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* Language Toggle styling */
+        .lang-switch {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        .lang-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px border var(--card-border);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: var(--transition);
+        }
+
+        .lang-btn:hover,
+        .lang-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        /* Main Container */
+        .container {
+            width: 100%;
+            max-width: 580px;
+            z-index: 1;
+        }
+
+        /* Card styles with Glassmorphism */
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            transition: var(--transition);
+        }
+
+        .logo-area {
+            font-size: 40px;
+            margin-bottom: 15px;
+            display: inline-block;
+            filter: drop-shadow(0 0 8px var(--primary));
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+
+        /* Search Input */
+        .search-box {
+            display: flex;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 20px;
+            transition: var(--transition);
+        }
+
+        .search-box:focus-within {
+            border-color: var(--primary);
+            box-shadow: 0 0 12px var(--primary-glow);
+        }
+
+        .search-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 15px;
+            padding: 10px 15px;
+            outline: none;
+            text-align: center;
+        }
+
+        .search-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0 20px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .search-btn:hover {
+            opacity: 0.9;
+        }
+
+        /* Timeline Progress */
+        .timeline {
+            margin-top: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            text-align: right;
+            padding: 10px 10px 10px 0;
+            border-right: 2px solid rgba(255, 255, 255, 0.05);
+            position: relative;
+        }
+
+        /* Timeline Connector Line */
+        .timeline-progress-bar {
+            position: absolute;
+            top: 15px;
+            right: -2px;
+            width: 2px;
+            background: var(--primary);
+            height: 0%;
+            transition: height 1s ease-in-out;
+            z-index: 0;
+        }
+
+        .timeline-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .timeline-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #1f2937;
+            border: 2px solid #374151;
+            margin-right: -8px;
+            margin-top: 6px;
+            transition: var(--transition);
+            flex-shrink: 0;
+        }
+
+        .timeline-item.active .timeline-dot {
+            background: var(--primary);
+            border-color: var(--bg-color);
+            box-shadow: 0 0 10px var(--primary);
+        }
+
+        .timeline-item.completed .timeline-dot {
+            background: var(--success);
+            border-color: var(--bg-color);
+            box-shadow: 0 0 10px var(--success-glow);
+        }
+
+        .timeline-content {
+            flex: 1;
+        }
+
+        .timeline-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .timeline-item.active .timeline-title {
+            color: white;
+        }
+
+        .timeline-item.completed .timeline-title {
+            color: var(--success);
+        }
+
+        .timeline-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        /* Device Details display */
+        .device-details {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 25px;
+            text-align: right;
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .detail-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .detail-label {
+            color: var(--text-secondary);
+        }
+
+        .detail-value {
+            font-weight: 600;
+        }
+
+        /* Status badges */
+        .badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge.ready {
+            background-color: var(--success-glow);
+            color: var(--success);
+        }
+
+        .badge.not-ready {
+            background-color: var(--danger-glow);
+            color: var(--danger);
+        }
+
+        /* Info & Error Messages */
+        .message-box {
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .message-box.error {
+            background: var(--danger-glow);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        /* Loading spinner */
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+            margin: 20px auto;
+            display: none;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* RTL/LTR adjustment classes */
+        .ltr {
+            direction: ltr;
+            text-align: left;
+        }
+
+        .ltr .timeline {
+            text-align: left;
+            padding-left: 0;
+            padding-right: 10px;
+            border-right: none;
+            border-left: 2px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .ltr .timeline-progress-bar {
+            right: auto;
+            left: -2px;
+        }
+
+        .ltr .timeline-dot {
+            margin-right: 0;
+            margin-left: -8px;
+        }
+
+        .ltr .device-details {
+            text-align: left;
+        }
+    </style>
+    <style>
+        /* The banner that appears the moment the status changes under the customer's eyes. */
+        #update-banner {
+            display: none;
+            margin: 12px 0 0;
+            padding: 12px 14px;
+            border-radius: 8px;
+            background: rgba(16, 185, 129, 0.14);
+            border: 1px solid rgba(16, 185, 129, 0.45);
+            animation: slide-in 0.35s ease;
+        }
+
+        #update-banner-title {
+            font-weight: 700;
+            color: var(--success);
+            margin-bottom: 2px;
+        }
+
+        #update-banner-body {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        @keyframes slide-in {
+            from { opacity: 0; transform: translateY(-8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .notify-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin: 14px 0 0;
+        }
+
+        .notify-btn {
+            padding: 9px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 13px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .notify-btn:hover { background: rgba(255, 255, 255, 0.12); }
+
+        .notify-hint {
+            display: none;
+            font-size: 12px;
+            color: var(--text-secondary);
+            flex: 1 1 100%;
+        }
+
+        .auto-note {
+            font-size: 11px;
+            color: var(--text-secondary);
+            opacity: 0.75;
+        }
+
+        #other-repairs {
+            display: none;
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .other-repair {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.04);
+            font-size: 13px;
+        }
+
+        .other-repair.current { outline: 1px solid var(--primary); }
+        .other-repair .ok { color: var(--success); font-weight: 600; }
+        .other-repair .muted { color: var(--text-secondary); }
+    </style>
+</head>
+
+<body>
+
+    <!-- Language Selector -->
+    <div class="lang-switch">
+        <button class="lang-btn active" data-lang="ar" onclick="switchLanguage('ar')">العربية</button>
+        <button class="lang-btn" data-lang="fr" onclick="switchLanguage('fr')">Français</button>
+        <button class="lang-btn" data-lang="en" onclick="switchLanguage('en')">English</button>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <div class="logo-area">🔧</div>
+            <h1 id="title">تتبع حالة إصلاح الجهاز</h1>
+            <p class="subtitle" id="subtitle">أدخل رقم هاتف العميل أو كود البار للتحقق من الحالة</p>
+
+            <!-- Search Area -->
+            <div class="search-box">
+                <input type="text" class="search-input" id="barcode-input" placeholder="مثال: A7K2QX أو رقم الهاتف">
+                <button class="search-btn" id="search-button" onclick="performSearch()">بحث</button>
+            </div>
+
+            <!-- Live updates + notifications -->
+            <div class="notify-row">
+                <button class="notify-btn" id="push-button">فعّل إشعارات الجوال</button>
+                <span class="auto-note" id="auto-update-note">تحديث تلقائي كل 30 ثانية</span>
+            </div>
+            <div class="notify-hint" id="push-hint"></div>
+
+            <!-- Appears the moment the status changes while the page is open -->
+            <div id="update-banner">
+                <div id="update-banner-title"></div>
+                <div id="update-banner-body"></div>
+            </div>
+
+            <!-- Loader -->
+            <div class="spinner" id="loader"></div>
+
+            <!-- Message box -->
+            <div class="message-box error" id="error-box"></div>
+
+            <!-- Device Information Panel -->
+            <div class="device-details" id="device-info-panel">
+                <div class="detail-row">
+                    <span class="detail-label" id="lbl-client">العميل</span>
+                    <span class="detail-value" id="val-client">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label" id="lbl-device">الجهاز</span>
+                    <span class="detail-value" id="val-device">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label" id="lbl-fault">العطل</span>
+                    <span class="detail-value" id="val-fault">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label" id="lbl-price">سعر الإصلاح</span>
+                    <span class="detail-value" id="val-price">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label" id="lbl-status">الحالة</span>
+                    <span id="val-status-badge">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label" id="lbl-ticket">رقم التذكرة</span>
+                    <span class="detail-value" id="val-ticket">-</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label" id="lbl-last-update">آخر تحديث</span>
+                    <span class="detail-value" id="val-last-update">-</span>
+                </div>
+
+                <!-- The customer's other devices, each with its own tracking code -->
+                <div id="other-repairs"></div>
+
+                <!-- Status Progress Timeline -->
+                <div class="timeline" id="progress-timeline">
+                    <div class="timeline-progress-bar" id="timeline-bar"></div>
+
+                    <div class="timeline-item" id="step-1">
+                        <div class="timeline-dot"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-title" id="step1-title">تم استلام الجهاز</div>
+                            <div class="timeline-desc" id="step1-desc">تم تسجيل جهازك في نظامنا وهو بانتظار فحص الفني.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="timeline-item" id="step-2">
+                        <div class="timeline-dot"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-title" id="step2-title">جاري الإصلاح والعمل عليه</div>
+                            <div class="timeline-desc" id="step2-desc">يقوم الفني حالياً بتشخيص وإصلاح الأعطال المذكورة.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="timeline-item" id="step-3">
+                        <div class="timeline-dot"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-title" id="step3-title">جهازك جاهز للاستلام</div>
+                            <div class="timeline-desc" id="step3-desc">تم الانتهاء من عملية الإصلاح بنجاح ويمكنك الحضور
+                                لاستلامه.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+        // ==========================================
+        // ⚙️ ONLINE DATABASE CONFIGURATION
+        // ==========================================
+        // provider 1 = Firebase Realtime Database, 2 = Supabase (PostgREST), 0 = disabled.
+        // pushPublicKey: the VAPID public key of YOUR push service. Leave it empty and the
+        // "enable notifications" button explains that push is not configured yet - everything
+        // else on the page (live updates, installable app) still works.
+        const DB_CONFIG = {
+            provider: 1,
+            firebaseUrl: "https://emds-app-default-rtdb.europe-west1.firebasedatabase.app/",
+            supabaseUrl: "",
+            supabaseApiKey: "",
+            supabaseTableName: "device_repairs",
+            pushPublicKey: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEY2B9txh/ps3ZkihLIJ8PYF1t8O0N5CYxE4Ux37ltyI752uBrYQMtcmJ5pDJs1MFhWgW9qjJCTfD/LCOFrREJow=="
+        };
+
+        // How often the open page re-checks the repair it is showing, in milliseconds.
+        const POLL_INTERVAL_MS = 30000;
+
+        // ==========================================
+        // 🔎 LOOKUP
+        // ==========================================
+        //
+        // Privacy note - the old version of this page fetched the ENTIRE repairs database and
+        // filtered it in the browser, which meant anyone who opened the page could read every
+        // customer's name, phone, fault, price and status. Now the page asks for exactly one
+        // customer's node, reached through a small index:
+        //     /codes/{CODE}      -> { barcode }    (the code printed on the receipt)
+        //     /phones/{213...}   -> { barcode }    (the phone number)
+        //     /repairs/{barcode}.json              (that customer's repairs, nothing else)
+        // Barcodes alone are no longer enough, which is the point: a barcode is guessable.
+        //
+        // A 6-character code is tried first, then the phone number, then the barcode, so old
+        // receipts that only carry a barcode keep working.
+
+        const LOOKUP_STEPS = [
+            { kind: 'code', test: v => /^[A-Z0-9]{6}$/.test(v) },
+            { kind: 'phone', test: v => v.replace(/[^0-9]/g, '').length >= 9 },
+            { kind: 'barcode', test: () => true }
+        ];
+
+        function normalizePhone(value) {
+            let digits = (value || '').replace(/[^0-9]/g, '');
+            if (digits.startsWith('213')) return digits;
+            if (digits.startsWith('0')) return '213' + digits.slice(1);
+            if (digits.length === 9) return '213' + digits;
+            return digits;
+        }
+
+        async function firebaseGet(path) {
+            const url = `${DB_CONFIG.firebaseUrl.replace(/\/$/, '')}/${path}.json`;
+            const response = await fetch(url);
+            if (response.status === 404) return null;
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return await response.json();
+        }
+/** Resolves whatever the customer typed into that customer's repairs. */
+        async function lookupFirebase(input) {
+            const raw = input.trim();
+            const upper = raw.toUpperCase();
+
+            for (const step of LOOKUP_STEPS) {
+                if (!step.test(step.kind === 'code' ? upper : raw)) continue;
+
+                let barcode = null;
+                let ticketId = null;
+
+                if (step.kind === 'code') {
+                    const index = await firebaseGet(`codes/${encodeURIComponent(upper)}`);
+                    if (!index || !index.barcode) continue;
+                    barcode = index.barcode;
+                    ticketId = index.repair_id;
+                } else if (step.kind === 'phone') {
+                    const index = await firebaseGet(`phones/${encodeURIComponent(normalizePhone(raw))}`);
+                    if (!index || !index.barcode) continue;
+                    barcode = index.barcode;
+                } else {
+                    barcode = raw;
+                }
+
+                const repairs = await readRepairs(barcode, ticketId);
+                if (repairs.length) return repairs;
+            }
+            return [];
+        }
+
+        /**
+         * Reads one customer's repairs, accepting both shapes:
+         *  - the current one: { "<repairId>": {...}, ... }
+         *  - the legacy one: a single repair object written directly at /repairs/{barcode}
+         */
+        async function readRepairs(barcode, ticketId) {
+            const node = await firebaseGet(`repairs/${encodeURIComponent(barcode)}`);
+            if (!node) return [];
+
+            // Legacy shape: the repair object itself.
+            if (node.customer_name || node.device_type || node.status) return [node];
+
+            let repairs = Object.keys(node)
+                .filter(key => key.charAt(0) !== '_' && node[key] && typeof node[key] === 'object')
+                .map(key => Object.assign({ repair_id: Number(key) || node[key].repair_id }, node[key]));
+
+            if (ticketId) {
+                const exact = repairs.find(r => String(r.repair_id) === String(ticketId));
+                if (exact) return [exact];
+            }
+            return repairs.sort((a, b) => (b.received_date || '').localeCompare(a.received_date || ''));
+        }
+
+        async function lookupSupabase(input) {
+            const raw = input.trim();
+            const phone = normalizePhone(raw);
+            const filter = `barcode.eq.${encodeURIComponent(raw)},phone.eq.${encodeURIComponent(raw)}` +
+                            (phone !== raw ? `,phone.eq.${encodeURIComponent(phone)}` : '') +
+                            (raw.length === 6 ? `,tracking_code.eq.${encodeURIComponent(raw.toUpperCase())}` : '');
+            const url = `${DB_CONFIG.supabaseUrl.replace(/\/$/, '')}/rest/v1/${DB_CONFIG.supabaseTableName}` +
+                        `?or=(${filter})&select=*&order=received_date.desc`;
+
+            const response = await fetch(url, {
+                headers: { 'apikey': DB_CONFIG.supabaseApiKey, 'Authorization': `Bearer ${DB_CONFIG.supabaseApiKey}` }
+            });
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const rows = await response.json();
+            return Array.isArray(rows) ? rows : [];
+        }
+
+        async function lookupRepairs(input) {
+            return DB_CONFIG.provider === 2 ? lookupSupabase(input) : lookupFirebase(input);
+        }
+// ==========================================
+        // 🔄 LIVE UPDATES  (the cheapest half of "notify the customer")
+        // ==========================================
+        //
+        // While the page is open it re-reads ONLY the repair it is showing and, when the
+        // status or the timestamp moved, tells the customer right there: a banner, a vibration
+        // and a short sound. No server, no account, no cost - and it works on every phone.
+        // The real push notification (below) is the upgrade for when the page is closed.
+
+        let pollTimer = null;
+        let shownRepair = null;     // the repair object currently on screen
+        let lastSignature = '';     // status + last_updated of that repair
+
+        function repairSignature(repair) {
+            return `${repair.status}|${repair.last_updated}`;
+        }
+
+        function startPolling() {
+            stopPolling();
+            pollTimer = setInterval(checkForUpdate, POLL_INTERVAL_MS);
+        }
+
+        function stopPolling() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = null;
+        }
+
+        async function checkForUpdate() {
+            if (!shownRepair) return;
+            try {
+                const repairs = await lookupRepairs(currentQuery);
+                if (!repairs.length) return;
+
+                const match = repairs.find(r =>
+                    shownRepair.repair_id && r.repair_id === shownRepair.repair_id) || repairs[0];
+                const signature = repairSignature(match);
+                if (signature === lastSignature) return;
+
+                const wasReady = isReady(shownRepair.status);
+                lastSignature = signature;
+                shownRepair = match;
+                renderRepair(match, repairs);
+
+                if (isReady(match.status) && !wasReady) {
+                    notifyChange(match, true);
+                } else {
+                    notifyChange(match, false);
+                }
+            } catch (err) {
+                // A failed check is not worth bothering the customer about; the next one tries again.
+                console.warn('update check failed', err);
+            }
+        }
+
+        function isReady(status) {
+            return status === 'جاهز' || status === 'Ready' || status === 'Prêt';
+        }
+
+        /** In-page alert: banner + vibration + sound. Works with no server at all. */
+        function notifyChange(repair, isNowReady) {
+            const title = isNowReady ? t('pushReadyTitle') : t('pushChangedTitle');
+            const body = isNowReady
+                ? `${repair.device_type || ''} ${t('pushReadyBody')}`
+                : `${repair.device_type || ''} ${t('statusNotReady')}`;
+
+            showUpdateBanner(title, body);
+
+            if (navigator.vibrate) {
+                try { navigator.vibrate(isNowReady ? [120, 80, 120, 80, 260] : 140); } catch (e) { /* older browsers */ }
+            }
+            playChime(isNowReady);
+        }
+
+        function playChime(isReadyNow) {
+            try {
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                if (!Ctx) return;
+                const ctx = new Ctx();
+                const notes = isReadyNow ? [660, 880, 990] : [520];
+                notes.forEach((freq, i) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.frequency.value = freq;
+                    osc.type = 'sine';
+                    gain.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.14);
+                    gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + i * 0.14 + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.14 + 0.16);
+                    osc.connect(gain).connect(ctx.destination);
+                    osc.start(ctx.currentTime + i * 0.14);
+                    osc.stop(ctx.currentTime + i * 0.14 + 0.18);
+                });
+                setTimeout(() => ctx.close(), 900);
+            } catch (e) { /* audio is a nicety, never a requirement */ }
+        }
+
+        function showUpdateBanner(title, body) {
+            const banner = document.getElementById('update-banner');
+            document.getElementById('update-banner-title').textContent = title;
+            document.getElementById('update-banner-body').textContent = body;
+            banner.style.display = 'block';
+
+            // Do not leave a toast the customer cannot read if the tab is in the background.
+            document.title = title;
+        }
+// ==========================================
+        // 📲 PWA + WEB PUSH
+        // ==========================================
+        //
+        // "Can it notify me without becoming an app?" Yes - and this is how.
+        //
+        //   Android / Chrome / Edge / desktop : works after one tap on "enable notifications".
+        //   iPhone                          : the page must first be added to the home screen
+        //                                     ("add to home screen" = one tap, no app store).
+        //
+        // The subscription is stored under the customer's own tracking code, so a push only ever
+        // goes to the device that asked for it. The sender side (anything that can sign a VAPID
+        // JWT and POST to the push service) is documented in Documentation/tracking_site.md.
+
+        function pushSupported() {
+            return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+        }
+
+        async function enableNotifications() {
+            if (!pushSupported()) {
+                setPushHint(t('pushNotSupported'));
+                return;
+            }
+            if (!DB_CONFIG.pushPublicKey) {
+                setPushHint(t('pushNotConfigured'));
+                return;
+            }
+
+            try {
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    setPushHint(t('pushDenied'));
+                    return;
+                }
+
+                const registration = await navigator.serviceWorker.ready;
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(DB_CONFIG.pushPublicKey)
+                });
+
+                await saveSubscription(subscription);
+                setPushHint(t('pushEnabled'), true);
+            } catch (err) {
+                console.warn('push subscription failed', err);
+                setPushHint(t('pushFailed'));
+            }
+        }
+
+        /** Stores the subscription under this customer's tracking code (never a global one). */
+        async function saveSubscription(subscription) {
+            const key = (shownRepair && shownRepair.tracking_code) || '';
+            if (!key) {
+                setPushHint(t('pushNeedsSearch'));
+                return;
+            }
+
+            const payload = {
+                endpoint: subscription.endpoint,
+                keys: subscription.toJSON().keys,
+                code: key,
+                created_at: new Date().toISOString()
+            };
+
+            if (DB_CONFIG.provider === 1) {
+                await firebaseGet(`push/${encodeURIComponent(key)}`).catch(() => null);
+                const url = `${DB_CONFIG.firebaseUrl.replace(/\/$/, '')}/push/${encodeURIComponent(key)}.json`;
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+            } else if (DB_CONFIG.provider === 2) {
+                const url = `${DB_CONFIG.supabaseUrl.replace(/\/$/, '')}/rest/v1/push_subscriptions?on_conflict=endpoint`;
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': DB_CONFIG.supabaseApiKey,
+                        'Authorization': `Bearer ${DB_CONFIG.supabaseApiKey}`,
+                        'Prefer': 'resolution=merge-duplicates'
+                    },
+                    body: JSON.stringify({
+                        endpoint: payload.endpoint,
+                        p256dh: payload.keys.p256dh,
+                        auth: payload.keys.auth,
+                        tracking_code: key
+                    })
+                });
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+            }
+        }
+
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
+        }
+
+        function setPushHint(text, isGood) {
+            const el = document.getElementById('push-hint');
+            el.textContent = text;
+            el.style.color = isGood ? '#10b981' : '#9ca3af';
+            el.style.display = 'block';
+        }
+
+        // A scanned QR code opens the page with ?code=XXXXXX - search immediately.
+        (function autoSearchFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            const barcode = params.get('barcode');
+            if (!code && !barcode) return;
+
+            document.getElementById('barcode-input').value = (code || barcode || '').toUpperCase();
+            setTimeout(() => performSearch(), 300);
+        })();
+
+        // Register the service worker so the page works offline and can be installed.
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => console.warn('sw registration failed', err));
+            });
+        }
+// ==========================================
+        // 🖥 RENDERING
+        // ==========================================
+
+        let currentQuery = '';
+
+        async function performSearch() {
+            currentQuery = document.getElementById('barcode-input').value.trim();
+            const errorBox = document.getElementById('error-box');
+            const infoPanel = document.getElementById('device-info-panel');
+            const loader = document.getElementById('loader');
+
+            errorBox.style.display = 'none';
+            infoPanel.style.display = 'none';
+            document.getElementById('update-banner').style.display = 'none';
+
+            if (!currentQuery) {
+                errorBox.textContent = t('errEmpty');
+                errorBox.style.display = 'block';
+                return;
+            }
+
+            loader.style.display = 'block';
+
+            try {
+                const repairs = await lookupRepairs(currentQuery);
+
+                loader.style.display = 'none';
+
+                if (repairs && repairs.length) {
+                    const newest = repairs[0];
+                    shownRepair = newest;
+                    lastSignature = repairSignature(newest);
+                    renderRepair(newest, repairs);
+                    startPolling();
+                } else {
+                    stopPolling();
+                    shownRepair = null;
+                    errorBox.textContent = t('errNotFound');
+                    errorBox.style.display = 'block';
+                }
+            } catch (err) {
+                console.error(err);
+                stopPolling();
+                loader.style.display = 'none';
+                errorBox.textContent = t('errFetch');
+                errorBox.style.display = 'block';
+            }
+        }
+
+        /** Shows the given repair, plus a compact list when the customer has more than one. */
+        function renderRepair(repair, allRepairs) {
+            document.getElementById('val-client').textContent = repair.customer_name || '-';
+            document.getElementById('val-device').textContent = repair.device_type || '-';
+            document.getElementById('val-fault').textContent = repair.fault || '-';
+
+            const price = parseFloat(repair.price || 0);
+            document.getElementById('val-price').textContent =
+                price.toLocaleString(undefined, { minimumFractionDigits: 2 }) + ' DZ';
+
+            document.getElementById('val-last-update').textContent = repair.last_updated || '-';
+            if (repair.ticket_number) {
+                document.getElementById('val-ticket').textContent = repair.ticket_number;
+            }
+
+            updateStatusUI(repair.status);
+            document.getElementById('device-info-panel').style.display = 'block';
+
+            renderOthers(allRepairs || []);
+        }
+
+        /** "You also brought us..." - the reason a customer gets a tracking code per repair. */
+        function renderOthers(repairs) {
+            const box = document.getElementById('other-repairs');
+            if (repairs.length <= 1) {
+                box.style.display = 'none';
+                box.innerHTML = '';
+                return;
+            }
+
+            const shownId = shownRepair ? shownRepair.repair_id : null;
+            box.innerHTML = '<div class="detail-label" style="margin-bottom:6px">' +
+                            t('otherRepairs') + '</div>';
+            repairs.forEach(r => {
+                const isCurrent = String(r.repair_id) === String(shownId);
+                const row = document.createElement('div');
+                row.className = 'other-repair' + (isCurrent ? ' current' : '');
+                row.innerHTML =
+                    '<span>' + (r.device_type || '-') + '</span>' +
+                    '<span>' + (r.received_date || '').slice(0, 10) + '</span>' +
+                    '<span class="' + (isReady(r.status) ? 'ok' : 'muted') + '">' +
+                        (isReady(r.status) ? t('statusReady') : t('statusNotReady')) + '</span>';
+                if (!isCurrent) {
+                    row.style.cursor = 'pointer';
+                    row.addEventListener('click', () => {
+                        shownRepair = r;
+                        lastSignature = repairSignature(r);
+                        renderRepair(r, repairs);
+                    });
+                }
+                box.appendChild(row);
+            });
+            box.style.display = 'block';
+        }
+
+        function updateStatusUI(status) {
+            const badge = document.getElementById('val-status-badge');
+            const step1 = document.getElementById('step-1');
+            const step2 = document.getElementById('step-2');
+            const step3 = document.getElementById('step-3');
+            const bar = document.getElementById('timeline-bar');
+
+            step1.className = 'timeline-item';
+            step2.className = 'timeline-item';
+            step3.className = 'timeline-item';
+
+            if (isReady(status)) {
+                badge.className = 'badge ready';
+                badge.textContent = t('statusReady');
+                step1.classList.add('completed');
+                step2.classList.add('completed');
+                step3.classList.add('completed');
+                bar.style.height = '100%';
+            } else {
+                badge.className = 'badge not-ready';
+                badge.textContent = t('statusNotReady');
+                step1.classList.add('completed');
+                step2.classList.add('active');
+                bar.style.height = '50%';
+            }
+        }
+// ==========================================
+        // 🌐 LANGUAGE
+        // ==========================================
+
+        const translations = {
+            ar: {
+                title: "تتبع حالة إصلاح الجهاز",
+                subtitle: "أدخل كود التتبع المطبوع على وصلتك، أو رقم الهاتف",
+                placeholder: "مثال: A7K2QX أو 0555 18 78 38",
+                btnSearch: "بحث",
+                lblClient: "العميل",
+                lblDevice: "الجهاز",
+                lblFault: "العطل",
+                lblPrice: "سعر الإصلاح",
+                lblStatus: "الحالة",
+                lblTicket: "رقم التذكرة",
+                lblLastUpdate: "آخر تحديث",
+                step1Title: "تم استلام الجهاز",
+                step1Desc: "تم تسجيل جهازك في نظامنا وهو بانتظار فحص الفني.",
+                step2Title: "جاري الإصلاح والعمل عليه",
+                step2Desc: "يقوم الفني حالياً بتشخيص وإصلاح الأعطال المذكورة.",
+                step3Title: "جهازك جاهز للاستلام",
+                step3Desc: "تم الانتهاء من عملية الإصلاح بنجاح ويمكنك الحضور لاستلامه.",
+                statusReady: "جاهز للاستلام",
+                statusNotReady: "غير جاهز / قيد المعالجة",
+                otherRepairs: "أجهزتك الأخرى",
+                enablePush: "فعّل إشعارات الجوال",
+                pushReadyTitle: "✅ جهازك جاهز للاستلام",
+                pushReadyBody: "يمكنك الحضور لاستلامه الآن",
+                pushChangedTitle: "🔔 تم تحديث حالة جهازك",
+                pushEnabled: "تم تفعيل الإشعارات بنجاح ✅",
+                pushNotConfigured: "الإشعارات غير مُفعّلة من طرف المحل بعد. الصفحة تُحدّث نفسها تلقائياً كل 30 ثانية.",
+                pushNotSupported: "هذا المتصفح لا يدعم الإشعارات. يُرجى استعمال Chrome أو Safari.",
+                pushDenied: "تم رفض إذن الإشعارات من المتصفح.",
+                pushFailed: "تعذّر تفعيل الإشعارات. حاول مرة أخرى.",
+                pushNeedsSearch: "ابحث عن جهازك أولاً حتى نربط الإشعار به.",
+                autoUpdate: "تحديث تلقائي كل 30 ثانية",
+                errNotFound: "عذراً، لم نجد أي جهاز مسجل بهذا الكود أو الرقم.",
+                errFetch: "حدث خطأ أثناء الاتصال. تأكد من الإنترنت ثم أعد المحاولة.",
+                errEmpty: "يرجى إدخال كود التتبع أو رقم الهاتف."
+            },
+fr: {
+                title: "Suivi de Réparation",
+                subtitle: "Saisissez le code de suivi imprimé sur votre reçu, ou votre numéro",
+                placeholder: "Ex: A7K2QX ou 0555 18 78 38",
+                btnSearch: "Rechercher",
+                lblClient: "Client",
+                lblDevice: "Appareil",
+                lblFault: "Problème / Panne",
+                lblPrice: "Prix estimé",
+                lblStatus: "Statut",
+                lblTicket: "N° de ticket",
+                lblLastUpdate: "Dernière mise à jour",
+                step1Title: "Appareil Reçu",
+                step1Desc: "Votre appareil a été enregistré et attend le diagnostic du technicien.",
+                step2Title: "En cours de Réparation",
+                step2Desc: "Le technicien travaille actuellement sur la résolution des pannes.",
+                step3Title: "Prêt pour Récupération",
+                step3Desc: "Réparation terminée avec succès ! Vous pouvez passer récupérer votre appareil.",
+                statusReady: "Prêt",
+                statusNotReady: "En cours de traitement",
+                otherRepairs: "Vos autres appareils",
+                enablePush: "Activer les notifications",
+                pushReadyTitle: "✅ Votre appareil est prêt",
+                pushReadyBody: "Vous pouvez venir le récupérer",
+                pushChangedTitle: "🔔 Le statut a changé",
+                pushEnabled: "Notifications activées ✅",
+                pushNotConfigured: "Les notifications ne sont pas encore activées par le magasin. La page se met à jour seule toutes les 30 secondes.",
+                pushNotSupported: "Ce navigateur ne gère pas les notifications. Utilisez Chrome ou Safari.",
+                pushDenied: "L'autorisation des notifications a été refusée.",
+                pushFailed: "Impossible d'activer les notifications. Réessayez.",
+                pushNeedsSearch: "Recherchez d'abord votre appareil pour y lier les notifications.",
+                autoUpdate: "Mise à jour automatique toutes les 30 secondes",
+                errNotFound: "Désolé, aucun appareil trouvé pour ce code ou ce numéro.",
+                errFetch: "Erreur de connexion. Vérifiez votre internet et réessayez.",
+                errEmpty: "Veuillez saisir un code de suivi ou un numéro de téléphone."
+            },
+            en: {
+                title: "Track Repair Status",
+                subtitle: "Enter the tracking code printed on your receipt, or your phone number",
+                placeholder: "e.g. A7K2QX or 0555 18 78 38",
+                btnSearch: "Search",
+                lblClient: "Customer",
+                lblDevice: "Device",
+                lblFault: "Fault Description",
+                lblPrice: "Repair Price",
+                lblStatus: "Status",
+                lblTicket: "Ticket",
+                lblLastUpdate: "Last Updated",
+                step1Title: "Device Received",
+                step1Desc: "Your device is logged in our system and is awaiting inspection.",
+                step2Title: "Under Repair",
+                step2Desc: "The technician is diagnosing and repairing the issues.",
+                step3Title: "Ready for Pickup",
+                step3Desc: "Repair completed successfully! You may now pick up your device.",
+                statusReady: "Ready for Pickup",
+                statusNotReady: "Not Ready / In Progress",
+                otherRepairs: "Your other devices",
+                enablePush: "Enable notifications",
+                pushReadyTitle: "✅ Your device is ready",
+                pushReadyBody: "You can come and collect it now",
+                pushChangedTitle: "🔔 Your device status changed",
+                pushEnabled: "Notifications enabled ✅",
+                pushNotConfigured: "Push notifications are not configured by the shop yet. The page still refreshes itself every 30 seconds.",
+                pushNotSupported: "This browser does not support notifications. Please use Chrome or Safari.",
+                pushDenied: "Notification permission was denied by the browser.",
+                pushFailed: "Could not enable notifications. Please try again.",
+                pushNeedsSearch: "Search for your device first so notifications can be linked to it.",
+                autoUpdate: "Auto-refresh every 30 seconds",
+                errNotFound: "Sorry, no device repair found for this code or number.",
+                errFetch: "Connection error. Check your internet and try again.",
+                errEmpty: "Please enter a tracking code or phone number."
+            }
+        };
+
+        let currentLang = 'ar';
+
+        function t(key) {
+            const pack = translations[currentLang] || translations.en;
+            return pack[key] || translations.en[key] || key;
+        }
+function switchLanguage(lang) {
+            currentLang = lang;
+            document.documentElement.lang = lang;
+            document.documentElement.dir = (lang === 'en') ? 'ltr' : 'rtl';
+
+            document.getElementById('title').textContent = t('title');
+            document.getElementById('subtitle').textContent = t('subtitle');
+            document.getElementById('barcode-input').placeholder = t('placeholder');
+            document.getElementById('search-button').textContent = t('btnSearch');
+            document.getElementById('lbl-client').textContent = t('lblClient');
+            document.getElementById('lbl-device').textContent = t('lblDevice');
+            document.getElementById('lbl-fault').textContent = t('lblFault');
+            document.getElementById('lbl-price').textContent = t('lblPrice');
+            document.getElementById('lbl-status').textContent = t('lblStatus');
+            document.getElementById('lbl-ticket').textContent = t('lblTicket');
+            document.getElementById('lbl-last-update').textContent = t('lblLastUpdate');
+            document.getElementById('step1-title').textContent = t('step1Title');
+            document.getElementById('step1-desc').textContent = t('step1Desc');
+            document.getElementById('step2-title').textContent = t('step2Title');
+            document.getElementById('step2-desc').textContent = t('step2Desc');
+            document.getElementById('step3-title').textContent = t('step3Title');
+            document.getElementById('step3-desc').textContent = t('step3Desc');
+            document.getElementById('push-button').textContent = t('enablePush');
+            document.getElementById('auto-update-note').textContent = t('autoUpdate');
+
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.lang === lang);
+            });
+
+            if (shownRepair) updateStatusUI(shownRepair.status);
+        }
+
+        switchLanguage('ar');
+        document.getElementById('search-button').addEventListener('click', performSearch);
+        document.getElementById('barcode-input').addEventListener('keydown', e => {
+            if (e.key === 'Enter') performSearch();
+        });
+        document.getElementById('push-button').addEventListener('click', enableNotifications);
+        document.addEventListener('visibilitychange', () => {
+            // Polling only while the tab is visible: no point waking the radio for nobody.
+            if (document.hidden) stopPolling(); else if (shownRepair) startPolling();
+        });
