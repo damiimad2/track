@@ -591,12 +591,32 @@
         // else on the page (live updates, installable app) still works.
         const DB_CONFIG = {
             provider: 1,
-            firebaseUrl: "https://emds-app-default-rtdb.europe-west1.firebasedatabase.app/",
+            // Guard: a malformed ?db= must not break the page for a customer who just wants to see
+            // their repair, so anything that is not an https Firebase-style url is ignored and the
+            // built-in fallback is used instead.
+            firebaseUrl: normaliseDbUrl(
+                new URLSearchParams(location.search).get('db') ||
+                'https://emds-app-default-rtdb.europe-west1.firebasedatabase.app/'),
             supabaseUrl: "",
             supabaseApiKey: "",
             supabaseTableName: "device_repairs",
             pushPublicKey: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEY2B9txh/ps3ZkihLIJ8PYF1t8O0N5CYxE4Ux37ltyI752uBrYQMtcmJ5pDJs1MFhWgW9qjJCTfD/LCOFrREJow=="
         };
+
+        /** Accepts only an https Firebase database url, always returned with one trailing slash. */
+        function normaliseDbUrl(raw) {
+            const fallback = 'https://emds-app-default-rtdb.europe-west1.firebasedatabase.app/';
+            const value = (raw || '').trim().replace(/\/+$/, '');
+            const looksLikeFirebase =
+                /^https:\/\/[a-z0-9-]+\.firebaseio\.com$/i.test(value) ||
+                /^https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.firebasedatabase\.app$/i.test(value);
+            return looksLikeFirebase ? value + '/' : fallback;
+        }
+
+        // Web Push only works for a phone that subscribed through THIS shop's page, because the
+        // subscription is stored in that shop's own database. A page handed the wrong ?db= would
+        // silently subscribe into a database the sender never reads.
+        DB_CONFIG.pushPublicKey = (new URLSearchParams(location.search).get('pk') || DB_CONFIG.pushPublicKey);
 
         // How often the open page re-checks the repair it is showing, in milliseconds.
         const POLL_INTERVAL_MS = 30000;
