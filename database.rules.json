@@ -1,0 +1,25 @@
+{
+  "rules": {
+    "repairs": {
+      ".read": false,
+      ".write": false,
+      "$barcode": { ".read": true, ".write": false }
+    },
+    "codes": {
+      ".read": false,
+      ".write": false,
+      "$code": { ".read": true, ".write": false }
+    },
+    "phones": {
+      ".read": false,
+      ".write": false,
+      "$phone": { ".read": true, ".write": false }
+    },
+    "push": {
+      ".read": false,
+      ".write": false,
+      "$code": { ".read": true, ".write": true }
+    },
+    "$other": { ".read": false, ".write": false }
+  }
+}
