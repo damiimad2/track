@@ -11,9 +11,9 @@
 // anywhere: all it does is display what the browser hands it.
 
 const CACHE_NAME = 'repair-tracking-v1';
-const OFFLINE_PAGE = 'track.html';
+const OFFLINE_PAGE = 'index.html';
 
-// Bump this whenever track.html changes, so phones pick up the new version instead of a
+// Bump this whenever index.html changes, so phones pick up the new version instead of a
 // stale cached copy.
 self.addEventListener('install', event => {
     event.waitUntil(
