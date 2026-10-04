@@ -879,6 +879,34 @@
             }
         }
 
+        /**
+         * Turns a VAPID public key into the exact bytes pushManager.subscribe() demands.
+         *
+         * The browser accepts ONE shape: the raw uncompressed P-256 point, 65 bytes starting 0x04.
+         * But the same key stored in a .key file, or pasted from most tools, is the DER/SPKI wrap -
+         * 91 bytes starting 0x30 - and handing that over fails with "the provided
+         * applicationServerKey is not valid". Since a shop may copy either form, both are accepted
+         * here instead of failing with a message nobody can act on.
+         */
+        function vapidApplicationServerKey(base64Key) {
+            const bytes = urlBase64ToUint8Array(base64Key);
+
+            if (bytes.length === 65 && bytes[0] === 0x04) return bytes;   // already the raw point
+
+            // DER-wrapped: the point is the trailing 65 bytes, and its marker must be 0x04.
+            if (bytes.length > 65 && bytes[bytes.length - 65] === 0x04) {
+                return bytes.slice(bytes.length - 65);
+            }
+
+            // Compressed point (33 bytes, 0x02/0x03) is the same curve but cannot be used as-is.
+            if (bytes.length === 33 && (bytes[0] === 0x02 || bytes[0] === 0x03)) {
+                console.warn('VAPID public key is a compressed point; it must be uncompressed (65 bytes).');
+            }
+
+            console.warn('VAPID public key is not a P-256 public key (' + bytes.length + ' bytes).');
+            return bytes;
+        }
+
         async function enableNotifications() {
             if (!pushSupported()) {
                 setPushHint(t('pushNotSupported'));
@@ -908,7 +936,7 @@
 
                 const subscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(DB_CONFIG.pushPublicKey)
+                    applicationServerKey: vapidApplicationServerKey(DB_CONFIG.pushPublicKey)
                 });
 
                 await saveSubscription(subscription);
