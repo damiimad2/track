@@ -639,6 +639,7 @@
 
         const LOOKUP_STEPS = [
             { kind: 'code', test: v => /^[A-Z0-9]{6}$/.test(v) },
+            { kind: 'ticket', test: v => /^[A-Za-z]{2,4}-?[0-9]{3,8}$/i.test(v) },
             { kind: 'phone', test: v => v.replace(/[^0-9]/g, '').length >= 9 },
             { kind: 'barcode', test: () => true }
         ];
@@ -664,7 +665,7 @@
             const upper = raw.toUpperCase();
 
             for (const step of LOOKUP_STEPS) {
-                if (!step.test(step.kind === 'code' ? upper : raw)) continue;
+                if (!step.test(step.kind === 'code' || step.kind === 'ticket' ? upper : raw)) continue;
 
                 let barcode = null;
                 let ticketId = null;
@@ -674,6 +675,17 @@
                     if (!index || !index.barcode) continue;
                     barcode = index.barcode;
                     ticketId = index.repair_id;
+                } else if (step.kind === 'ticket') {
+                    // "REP-00003" is what the counter reads off the slip, so it must work as a
+                    // lookup key on its own. Tries the stored form first, then the bare number in
+                    // case it was typed without the prefix.
+                    const forms = [upper, upper.replace(/^[A-Z]+-?/, '')];
+                    for (const form of forms) {
+                        if (!form) continue;
+                        const index = await firebaseGet(`tickets/${encodeURIComponent(form)}`);
+                        if (index && index.barcode) { barcode = index.barcode; ticketId = index.repair_id; break; }
+                    }
+                    if (!barcode) continue;
                 } else if (step.kind === 'phone') {
                     const index = await firebaseGet(`phones/${encodeURIComponent(normalizePhone(raw))}`);
                     if (!index || !index.barcode) continue;
