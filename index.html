@@ -853,6 +853,32 @@
             return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
         }
 
+        /** Registers the worker if needed and returns it, or null if it is not usable within the deadline. */
+        async function ensureServiceWorkerReady() {
+            if (!('serviceWorker' in navigator)) return null;
+            try {
+                // getRegistration first: if the worker already controls this page it resolves
+                // immediately, so a returning customer does not wait for a new install.
+                const existing = await navigator.serviceWorker.getRegistration();
+                const registration = existing || await navigator.serviceWorker.register('sw.js');
+
+                // A worker that installs but never reaches "activated" (an old sw.js waiting on a
+                // cache it can no longer open) would hang forever on .ready, so race it.
+                const activated = await Promise.race([
+                    navigator.serviceWorker.ready.then(() => true),
+                    new Promise(resolve => setTimeout(() => resolve(false), 8000))
+                ]);
+                if (!activated) {
+                    console.warn('service worker did not activate in time');
+                    return null;
+                }
+                return registration;
+            } catch (err) {
+                console.warn('service worker unavailable', err);
+                return null;
+            }
+        }
+
         async function enableNotifications() {
             if (!pushSupported()) {
                 setPushHint(t('pushNotSupported'));
@@ -870,7 +896,16 @@
                     return;
                 }
 
-                const registration = await navigator.serviceWorker.ready;
+                // navigator.serviceWorker.ready never rejects and never times out: if the worker
+                // failed to register (a stale cached sw.js, a private window, a hard reload) the
+                // customer would stare at a button that does nothing forever. Registering here
+                // and waiting with a deadline turns that silence into an honest message.
+                const registration = await ensureServiceWorkerReady();
+                if (!registration) {
+                    setPushHint(t('pushFailed'));
+                    return;
+                }
+
                 const subscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
                     applicationServerKey: urlBase64ToUint8Array(DB_CONFIG.pushPublicKey)
@@ -879,6 +914,9 @@
                 await saveSubscription(subscription);
                 setPushHint(t('pushEnabled'), true);
             } catch (err) {
+                // The message shown to the customer stays generic, but the reason goes to the
+                // console: without it, a support question ("notifications do not work") cannot be
+                // answered by anyone, including the shop's own technician.
                 console.warn('push subscription failed', err);
                 setPushHint(t('pushFailed'));
             }
